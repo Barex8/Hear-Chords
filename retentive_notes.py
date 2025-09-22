@@ -9,13 +9,14 @@ import sounddevice as sd
 from note import Note
 
 
-class NotesTab(ttk.Frame):
+class RetentiveNotesTab(ttk.Frame):
 
 
     form = {
         "num_notes_min":1,
         "num_notes_max":1,
-        "notes_played":[]
+        "notes_played":[],
+        "note_to_guess" : []
 
     }
 
@@ -27,12 +28,12 @@ class NotesTab(ttk.Frame):
         ttk.Label(self,text="mín:",width=10).grid(column=0,row=1)
         self.num_notes_min_input = ttk.Entry(self, width=3)
         self.num_notes_min_input.grid(column=1,row=1)
-        self.num_notes_min_input.insert(0,"1")
+        self.num_notes_min_input.insert(0,"2")
 
         ttk.Label(self,text="máx:",width=10).grid(column=2,row=1)
         self.num_notes_max_input = ttk.Entry(self,width=3)
         self.num_notes_max_input.grid(column=3,row=1)
-        self.num_notes_max_input.insert(0, "1")
+        self.num_notes_max_input.insert(0, "2")
 
 
         ttk.Label(self, text="Duración de cada nota:").grid(column=0, row=2)
@@ -87,6 +88,12 @@ class NotesTab(ttk.Frame):
         self.check_mind_octaves.grid(column=0, row=1, pady=5, padx=5)
         self.check_mind_octaves.select()
 
+        ttk.Label(checkboxes_frame, text="¿Que nota quieres adivinar?").grid(column=0, row=2)
+        self.note_to_guess_entry = ttk.Entry(checkboxes_frame,width=3)
+        self.note_to_guess_entry.grid(column=1, row=2)
+        self.note_to_guess_entry.insert(0, "1")
+
+
         ttk.Label(self, text="Solución:").grid(column=0, row=9)
         self.solution_entry = ttk.Entry(self, width=40)
         self.solution_entry.grid(column=0,row=10,columnspan=3)
@@ -114,6 +121,7 @@ class NotesTab(ttk.Frame):
         self.form["octave_min"] = int(self.octave_min_input.get())
         self.form["octave_max"] = int(self.octave_max_input.get())
         self.form["notes_played"] = []
+        self.form["pos_note_to_guess"] = int(self.note_to_guess_entry.get())
 
         return self.form
 
@@ -171,6 +179,7 @@ class NotesTab(ttk.Frame):
         if form is None:
             form = self.new_form()
             form["notes_played"] = []
+            self.form["note_to_guess"] = []
 
         if not form["notes_played"]:
             for i in range(random.randint(form["num_notes_min"],form["num_notes_max"])):
@@ -178,13 +187,13 @@ class NotesTab(ttk.Frame):
                 random_note_duration = random.uniform(form["dur_notes_min"],form["dur_notes_max"])
                 notes = {}
                 if self.sharp_notes.get():
-                    print("seleccionado")
                     notes = self.notes
                 else:
                     for n in self.notes:
                         if not "#" in n:
                             notes[n] = self.notes[n]
-                    print("deseleccionado")
+
+
 
                 random_note_name = random.choice(list(notes.keys()))
                 random_octave = random.randint(form["octave_min"],form["octave_max"])
@@ -194,6 +203,8 @@ class NotesTab(ttk.Frame):
                 random_note_freq = self.change_octave(random_note_name,random_octave)
                 wave = self.chord(random_note_freq, "major", duration=random_note_duration)
                 sd.play(wave, 44100)
+                if i == self.form["pos_note_to_guess"]-1:
+                    self.form["note_to_guess"].append(Note(int(random_note_duration*1000),wave,random_octave,note_name))
 
                 form["notes_played"].append(Note(int(random_note_duration*1000),wave,random_octave,note_name))
                 sd.sleep(int(random_note_duration*1000))
@@ -209,7 +220,7 @@ class NotesTab(ttk.Frame):
 
     def check_solution(self,form):
         solution = ""
-        for note in form["notes_played"]:
+        for note in form["note_to_guess"]:
             if self.mind_octaves.get():
                 solution += f"{str(note.name)},"
             else:
@@ -228,7 +239,7 @@ class NotesTab(ttk.Frame):
 
     def show_solution(self,form):
         solution = ""
-        for note in form["notes_played"]:
+        for note in form["note_to_guess"]:
             solution += f"{str(note.name)},"
         solution = solution[:-1]
         tkinter.messagebox.showinfo("Solución", solution)

@@ -5,36 +5,19 @@ from tkinter import ttk
 
 import numpy as np
 import sounddevice as sd
-
 from note import Note
 
 
-class NotesTab(ttk.Frame):
+class ChordNotesTab(ttk.Frame):
 
 
     form = {
-        "num_notes_min":1,
-        "num_notes_max":1,
-        "notes_played":[]
-
+        "notes_played":[],
+        "intervals_chosen":[]
     }
 
     def __init__(self,master):
         super().__init__(master)
-
-        ttk.Label(self,text="Número de notas:").grid(column=0,row=0)
-
-        ttk.Label(self,text="mín:",width=10).grid(column=0,row=1)
-        self.num_notes_min_input = ttk.Entry(self, width=3)
-        self.num_notes_min_input.grid(column=1,row=1)
-        self.num_notes_min_input.insert(0,"1")
-
-        ttk.Label(self,text="máx:",width=10).grid(column=2,row=1)
-        self.num_notes_max_input = ttk.Entry(self,width=3)
-        self.num_notes_max_input.grid(column=3,row=1)
-        self.num_notes_max_input.insert(0, "1")
-
-
         ttk.Label(self, text="Duración de cada nota:").grid(column=0, row=2)
 
         ttk.Label(self, text="mín:", width=10).grid(column=0, row=3)
@@ -61,7 +44,7 @@ class NotesTab(ttk.Frame):
         self.dur_between_notes_max_input.insert(0, "1")
 
 
-        ttk.Label(self, text="Octavas de las notas:").grid(column=0, row=6)
+        ttk.Label(self, text="Octavas de los acordes:").grid(column=0, row=6)
 
         ttk.Label(self, text="mín:", width=10).grid(column=0, row=7)
         self.octave_min_input = ttk.Entry(self, width=3)
@@ -76,11 +59,16 @@ class NotesTab(ttk.Frame):
         checkboxes_frame = ttk.LabelFrame(self, text="Otros")
         checkboxes_frame.grid(column=0, row=8, columnspan=4, pady=10, sticky="ew")
 
+        ttk.Label(checkboxes_frame, text="Tipos de acordes", width=10).grid(column=0, row=3,sticky="w")
+        self.chord_type_listbox = tkinter.Listbox(checkboxes_frame, selectmode="multiple", height=5)
+        for nota in self.intervals:
+            self.chord_type_listbox.insert(tkinter.END, nota)
+        self.chord_type_listbox.grid(column=0,row=4,sticky="w")
+
         self.sharp_notes = tkinter.BooleanVar(value=True)
         self.check_sharp = tkinter.Checkbutton(checkboxes_frame,text="¿Sostenidos?",variable= self.sharp_notes)
         self.check_sharp.grid(column=0,row=0,pady=5,padx=5,sticky="ew")
         self.check_sharp.select()
-
 
         self.mind_octaves = tkinter.BooleanVar(value=True)
         self.check_mind_octaves= tkinter.Checkbutton(checkboxes_frame, text="¿Tener en cuenta octavas en la solución?", variable=self.mind_octaves)
@@ -105,8 +93,6 @@ class NotesTab(ttk.Frame):
 
 
     def new_form(self):
-        self.form["num_notes_min"] = int( self.num_notes_min_input.get())
-        self.form["num_notes_max"] = int( self.num_notes_max_input.get())
         self.form["dur_notes_min"] = float( self.dur_notes_min_input.get())
         self.form["dur_notes_max"] = float( self.dur_notes_max_input.get())
         self.form["dur_between_notes_min"] = float (self.dur_between_notes_min_input.get())
@@ -114,7 +100,7 @@ class NotesTab(ttk.Frame):
         self.form["octave_min"] = int(self.octave_min_input.get())
         self.form["octave_max"] = int(self.octave_max_input.get())
         self.form["notes_played"] = []
-
+        self.form["intervals_chosen"] = [self.chord_type_listbox.get(i) for i in self.chord_type_listbox.curselection()]
         return self.form
 
 
@@ -136,7 +122,7 @@ class NotesTab(ttk.Frame):
 
 #------ TEMA ACORDES ----------
     intervals = {
-        "major": [0],
+        "major": [0,4,7],
         "minor": [0, 3, 7],
         "7": [0, 4, 7, 10],
         "maj7": [0, 4, 7, 11],
@@ -149,13 +135,21 @@ class NotesTab(ttk.Frame):
         t = np.linspace(0, duration, int(fs * duration), endpoint=False)
         return volume * np.sin(2 * np.pi * frequency * t)
 
-    def chord(self,root_freq, type="major", duration=2.0):
+    def chord(self, root_freq, chord_type = None, duration=2.0):
         """Genera un acorde a partir de la frecuencia raíz"""
+
+        if chord_type is None:
+            chord_type = random.choice(self.form.get("intervals_chosen"))
+
+        print(chord_type)
+
         waves = []
-        for interval in self.intervals[type]:
+        for interval in self.intervals[chord_type]:
             f = root_freq * (2 ** (interval / 12))  # sube interval semitonos
             waves.append(self.generate_wave(f, duration))
-        return sum(waves)  # mezcla las notas del acorde
+            print(interval)
+        # return sum(waves)  # mezcla las notas del acorde
+        return waves
 
     def change_octave(self, note: str, octave: int) -> float:
         """
@@ -171,33 +165,32 @@ class NotesTab(ttk.Frame):
         if form is None:
             form = self.new_form()
             form["notes_played"] = []
+        form["intervals_chosen"] = [self.chord_type_listbox.get(i) for i in self.chord_type_listbox.curselection()]
 
         if not form["notes_played"]:
-            for i in range(random.randint(form["num_notes_min"],form["num_notes_max"])):
-                #Guardar cada nota en una lista para poder hacer replay
-                random_note_duration = random.uniform(form["dur_notes_min"],form["dur_notes_max"])
-                notes = {}
-                if self.sharp_notes.get():
-                    print("seleccionado")
-                    notes = self.notes
-                else:
-                    for n in self.notes:
-                        if not "#" in n:
-                            notes[n] = self.notes[n]
-                    print("deseleccionado")
 
-                random_note_name = random.choice(list(notes.keys()))
-                random_octave = random.randint(form["octave_min"],form["octave_max"])
-                print(f"Note: {random_note_name}{random_octave}")
-                note_name = f"{random_note_name}{random_octave}"
+            random_note_duration = random.uniform(form["dur_notes_min"],form["dur_notes_max"])
 
-                random_note_freq = self.change_octave(random_note_name,random_octave)
-                wave = self.chord(random_note_freq, "major", duration=random_note_duration)
-                sd.play(wave, 44100)
+            notes = {}
+            if self.sharp_notes.get():
+                notes = self.notes
+            else:
+                for n in self.notes:
+                    if not "#" in n:
+                        notes[n] = self.notes[n]
 
-                form["notes_played"].append(Note(int(random_note_duration*1000),wave,random_octave,note_name))
-                sd.sleep(int(random_note_duration*1000))
-                sd.sleep(int(random.uniform(form["dur_between_notes_min"],form["dur_between_notes_max"])*1000))
+            random_note_name = random.choice(list(notes.keys()))
+            random_octave = random.randint(form["octave_min"],form["octave_max"])
+            note_name = f"{random_note_name}{random_octave}"
+            print(f"Note: {note_name}")
+
+            random_note_freq = self.change_octave(random_note_name,random_octave)
+            waves = self.chord(root_freq=random_note_freq,duration=random_note_duration)
+            for w in waves:
+                sd.play(w,44100)
+                form["notes_played"].append(Note(int(random_note_duration * 1000), w, random_octave, note_name))
+                sd.sleep(int(random_note_duration * 1000))
+                sd.sleep(int(random.uniform(form["dur_between_notes_min"], form["dur_between_notes_max"]) * 1000))
             print("-------------------------")
         else:
             for note in form["notes_played"]:
